@@ -57,14 +57,14 @@ class QSimPyEnv(gym.Env):
 
         # OBSERVATION SPACE
         # Each observation is a dict of qtask_attributes and qnode_attributes
-        # QTask attrributes = [arrivaltime, qt_qubits, cl]
-        # QNode attributes = [qn_qubits, d1cps, next_available_time]
+        # QTask attrributes = [arrivaltime, qt_qubits, cl, rescheduling_count]
+        # QNode attributes = [qn_qubits, clops, next_available_time, fidelity]
         self.n_qtasks = 25
         self.n_qnodes = 5  # number of qnodes
         self.qtasks = []
         self.qnodes = []
         self.mode = mode
-        self.obs_dim = 4 + self.n_qnodes * 3
+        self.obs_dim = 4 + self.n_qnodes * 4  # Added fidelity to node observations
         self.observation_space = Box(
             low=np.ones((self.obs_dim,), dtype=np.float32) * -np.inf,
             high=np.ones((self.obs_dim,), dtype=np.float32) * np.inf,
@@ -77,15 +77,15 @@ class QSimPyEnv(gym.Env):
         max_clops = 10000  # Max computational load
         max_rescheduling_count = 1000  # Max number of rescheduling
 
-        # Assuming the observation consists of [arrival_time, qubit_number, circuit_layers] for tasks
-        # and [qubit_number, clops, next_available_time] for each node
+        # Assuming the observation consists of [arrival_time, qubit_number, circuit_layers, rescheduling_count] for tasks
+        # and [qubit_number, clops, next_available_time, fidelity] for each node
         task_obs_low = np.array([0, 0, 0, 0], dtype=np.float64)
         task_obs_high = np.array(
             [max_time, max_qubits, max_layers, max_rescheduling_count], dtype=np.float64
         )
-        node_obs_low = np.array([0, 0, -1] * self.n_qnodes, dtype=np.float64)
+        node_obs_low = np.array([0, 0, -1, 0] * self.n_qnodes, dtype=np.float64)
         node_obs_high = np.array(
-            [max_qubits, max_clops, max_time] * self.n_qnodes, dtype=np.float64
+            [max_qubits, max_clops, max_time, 1.0] * self.n_qnodes, dtype=np.float64
         )
 
         # Combine to form the complete observation space
@@ -142,7 +142,7 @@ class QSimPyEnv(gym.Env):
                 dtype=np.float64,
             )
 
-        # Get the current observation of quantum nodes
+        # Get the current observation of quantum nodes (including fidelity)
         self.qnode_obs = []
         for qnode in self.qnodes:
             qnode_obs = np.array(
@@ -150,6 +150,7 @@ class QSimPyEnv(gym.Env):
                     qnode.qubit_number,
                     qnode.clops,
                     qnode.next_available_time,
+                    qnode.get_fidelity_score(self.current_qtask),  # Add task-aware fidelity
                 ],
                 dtype=np.float64,
             )

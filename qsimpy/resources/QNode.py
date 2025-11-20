@@ -212,6 +212,58 @@ class QNode(simpy.Resource):
     def get_utilization(self, total_simulation_time):
         return self.total_busy_time / total_simulation_time
 
+    def get_fidelity_score(self, task=None):
+        """
+        Calculate fidelity score based on error rates.
+        Returns a probability of success (0-1) based on hardware error rates and task complexity.
+
+        Args:
+            task: QTask object (optional). If provided, calculates task-specific fidelity.
+
+        Returns:
+            float: Fidelity score (0-1), where 1.0 is perfect fidelity.
+        """
+        if self.error is None:
+            return 1.0  # Assume perfect fidelity if no error data
+
+        # Extract average error rates from the error dictionary
+        readout_error = self.error.get("Readout_assignment_error", 0.0)
+        gate_error = self.error.get("ID_error", 0.0)
+
+        # Handle negative values (data artifacts) by taking absolute value
+        readout_error = abs(readout_error)
+
+        # Base fidelity calculation (simplified model)
+        # Success probability = (1 - readout_error) for measurements
+        base_fidelity = 1.0 - readout_error
+
+        # If task is provided, account for circuit depth
+        if task is not None:
+            circuit_layers = task.get_circuit_layers()
+            qubit_count = task.qubit_number
+
+            # Estimate total gates (simplified: layers * qubits)
+            # Each gate has error probability, accumulates multiplicatively
+            # P_success ≈ (1 - gate_error)^num_gates * (1 - readout_error)^num_qubits
+            num_gates = circuit_layers * qubit_count
+            gate_fidelity = (1.0 - gate_error) ** num_gates
+            readout_fidelity = (1.0 - readout_error) ** qubit_count
+
+            return gate_fidelity * readout_fidelity
+
+        return base_fidelity
+
+    def get_average_gate_error(self):
+        """
+        Get the average gate error rate of the quantum node.
+
+        Returns:
+            float: Average gate error rate.
+        """
+        if self.error is None:
+            return 0.0
+        return self.error.get("ID_error", 0.0)
+
     def get_state(self):
         """Get the state of the quantum node."""
         return {
@@ -221,4 +273,5 @@ class QNode(simpy.Resource):
             "clops": self.clops,
             "d1cps": self.d1cps,
             "next_available_time": self.next_available_time,
+            "fidelity": self.get_fidelity_score(),
         }
