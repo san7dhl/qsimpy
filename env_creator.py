@@ -4,7 +4,7 @@ from gymnasium.experimental.wrappers import RescaleObservationV0, DtypeObservati
 import numpy as np
 
 
-def qsimpy_env_creator(env_config):
+def env_creator(env_config):
     dataset = env_config.pop("dataset", None)
     config = env_config.pop("config", None)
     config = config if config is not None else {}
